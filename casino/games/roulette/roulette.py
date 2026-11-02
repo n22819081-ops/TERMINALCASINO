@@ -6,10 +6,10 @@ import sys
 import shutil
 import re
 
-from casino.stats import GameStats, display_stats
 from casino.types import GameContext
 from casino.utils import clear_screen, cprint, cinput, display_topbar
 from casino.accounts import Account
+from casino.stats import display_stats, GameStats
 
 ROULETTE_HEADER = """
 ┌─────────────────────────────┐
@@ -313,6 +313,7 @@ class Roulette:
 
             if (self.accounts[i].balance == 0):
                 cprint(f"Skipping player {i+1} because of empty balance...")
+                i += 1
                 continue
 
             will_bet = cinput(f"🤵: Would you like to bet, Player {i+1} (y/N): ")
@@ -426,8 +427,13 @@ class Roulette:
         winning_color  = self.winning_value[1]
 
         cprint("Paying out all winners...")
-        i = 0
-        for _, bet in self.bets.items():
+        # Loop over accounts (not bets) so each payout goes to the right player,
+        # even if an earlier player skipped betting this round
+        for i, account in enumerate(self.accounts):
+            bet = self.bets.get(str(account.aid))
+            if bet is None:
+                continue
+
             bet_type   = bet["type"]
             bet_value  = bet["value"]
             bet_amount = bet["amount"]
@@ -435,7 +441,7 @@ class Roulette:
             win_multiplier = 1
             # Check if user won
             if bet_type == "color" and bet_value == winning_color:
-                if bet_type == "green":
+                if bet_value == "green":
                     win_multiplier += 35
                 else:
                     # Find account and pay back two times original bet
@@ -446,12 +452,10 @@ class Roulette:
 
             if win_multiplier > 1:
                 win_amount = bet_amount * win_multiplier
-                self.accounts[i].deposit(win_amount)
+                account.deposit(win_amount)
                 cprint(f"Player {i+1}: Won {win_amount} coins.")
             else:
                 cprint(f"Player {i+1}: Lost {bet_amount} coins.")
-            
-            i += 1
 
         cprint("Finished payout.")
 
@@ -481,13 +485,11 @@ def play_roulette(context: GameContext) -> None:
                          f"accounts is a {type(accounts)}")
 
     roulette = AmericanRoulette(accounts)
-    stats = GameStats("Roulette", context.account.balance)
+    stats = GameStats("American Roulette", context.account.balance)
     while continue_game:
         roulette.reset_round()
         clear_screen()
         display_roulette_topbar(context)
-
-        balance_before = context.account.balance
 
         # Input to stop loop from running constantly
         choice = cinput("Press [Enter] to start a new round and [q] to quit: ")
@@ -495,23 +497,20 @@ def play_roulette(context: GameContext) -> None:
         if choice.lower() in {"q", "quit"}:
             continue_game = False
             break
-
+        prev_balance = context.account.balance
         status = roulette.submit_bets(context)
         if status == "BANKRUPT":
             break
 
         roulette.spin_wheel(context)
         roulette.payout()
-        refresh_roulette_topbar(context)
-
-        # Track this round's outcome for the postgame summary.
-        stats.rounds_played += 1
-        if context.account.balance > balance_before:
+        if context.account.balance > prev_balance:
             stats.wins += 1
-        elif context.account.balance < balance_before:
+            stats.rounds_played += 1
+        elif context.account.balance < prev_balance:
             stats.losses += 1
-        else:
-            stats.pushes += 1
+            stats.rounds_played += 1
+        refresh_roulette_topbar(context)
 
         play_again = None
 
@@ -529,9 +528,7 @@ def play_roulette(context: GameContext) -> None:
             elif play_again == "" or play_again.lower() in {"y", "yes"}:
                 continue_game = True
                 break
-
     stats.ending_balance = context.account.balance
     display_stats(stats)
-
     #cprint("Exiting roulette...")
     #sleep(0.5)
