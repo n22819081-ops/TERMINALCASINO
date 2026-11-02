@@ -18,18 +18,23 @@ class BlackjackView:
     def display_topbar(self) -> None:
         display_topbar(self.context.account, **BLACKJACK_HEADER_OPTIONS)
 
-    def render_table(self, player, dealer_hand,
+    def render_table(self, players, dealer_hand,
+                      active_player_idx: int | None = None,
                       active_hand_idx: int | None = None) -> None:
         clear_screen()
         self.display_topbar()
+        # Accept a single Player (back-compat) or a list of Players (2-player).
+        if not isinstance(players, (list, tuple)):
+            players = [players]
         dealer_hand.print_hand(label="Dealer's Hand")
         cprint("=" * 40)
-        num_hands = len(player.hands)
-        for idx, hand in enumerate(player.hands):
-            is_active = (idx == active_hand_idx)
-            label = f"{player.name} - Hand {idx + 1}" if num_hands > 1 else player.name
-            hand.print_hand(label=label, is_active=is_active)
-            print()
+        for p_idx, player in enumerate(players):
+            num_hands = len(player.hands)
+            for idx, hand in enumerate(player.hands):
+                is_active = (p_idx == active_player_idx and idx == active_hand_idx)
+                label = f"{player.name} - Hand {idx + 1}" if num_hands > 1 else player.name
+                hand.print_hand(label=label, is_active=is_active)
+                print()
 
     def prompt_bet(self, player, error_msg: str = "") -> str:
         clear_screen()
