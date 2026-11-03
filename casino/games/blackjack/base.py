@@ -4,7 +4,8 @@ from abc import ABC, abstractmethod
 from casino.cards import StandardDeck
 from casino.types import GameContext
 from casino.accounts import Account
-from casino.utils import clear_screen, cprint, cinput
+from casino.stats import GameStats, display_stats
+from casino.utils import clear_screen, cprint, cinput, display_topbar
 from .constants import *
 from .hand import Hand
 from .views import BlackjackView
@@ -22,6 +23,27 @@ class Player:
         self.name = account.name
 
 
+# The 2nd player starts with the same balance as the primary player
+# (ACCOUNT_STARTING_BALANCE in casino/main.py).
+ALTERNATE_STARTING_BALANCE = 100
+
+
+def select_players(context: GameContext) -> list[Account]:
+    display_topbar(context.account, **BLACKJACK_HEADER_OPTIONS)
+    cprint("\nHow many players would you like to play? (1-2)")
+    raw = cinput("Number of players (1-2): ").strip()
+    while raw not in {"1", "2"}:
+        cprint("Enter 1 or 2.")
+        raw = cinput("Number of players (1-2): ").strip()
+    if raw == "1":
+        context.alternate_account = None
+        return [context.account]
+    name = cinput("Second player's name: ").strip() or "Player 2"
+    context.alternate_account = Account.generate(name, ALTERNATE_STARTING_BALANCE)
+    cprint(f"{name} is now playing with {ALTERNATE_STARTING_BALANCE} chips.")
+    return [context.account, context.alternate_account]
+
+
 class Blackjack(ABC):
     """
     Abstract base class that sets up Blackjack.
@@ -36,7 +58,13 @@ class Blackjack(ABC):
         self.view = BlackjackView(ctx)
         shoe_size = self.configurations.blackjack_shoe_size
         self.deck: StandardDeck = StandardDeck(shoe_size)
-        self.player: Player = Player(ctx.account)
+        # 2-player support: original player first, then the optional second player.
+        # self.player stays the primary so the single-player path is unchanged.
+        self.players: list[Player] = [Player(ctx.account)]
+        if ctx.alternate_account is not None:
+            self.players.append(Player(ctx.alternate_account))
+        self.player: Player = self.players[0]
+        self.view.seated = self.players
         self.dealer_hand: Hand = Hand()
         self.MINIMUM_BET = self.configurations.blackjack_min_bet
 
@@ -104,7 +132,17 @@ class Blackjack(ABC):
             self.context = context
             self.configurations = context.config
         self.dealer_hand = None
-        self.player.hands = []
+        for player in self.players:
+            player.hands = []
+
+    def show_final_stats(self) -> None:
+        self.stats.ending_balance = self.player.account.balance
+        if self.alt_stats is None:
+            display_stats(self.stats)
+            return
+        self.alt_stats.ending_balance = self.players[1].account.balance
+        display_stats(self.stats, player_name=self.player.name, wait=False)
+        display_stats(self.alt_stats, player_name=self.players[1].name, clear=False)
 
     #deal card method
     def deal_card(self, hand: Hand, hidden: bool = False) -> None:
