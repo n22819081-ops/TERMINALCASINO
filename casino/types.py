@@ -13,5 +13,5 @@ class GameContext:
     account: Account
     config: Config
     # Optional second player (2-player mode). Persisted on the shared context so
-    # the alternate player survives across games. None for single-player.
+    # the added player info survives across games. None for single-player.
     alternate_account: Account | None = None

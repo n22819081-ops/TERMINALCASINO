@@ -49,7 +49,6 @@ class Hand:
 
     #NEW: method to print hand cards
     def print_hand(self, label:str = "Hand", is_active: bool = False) -> None:
-        prefix = " >>> " if is_active else "     "
         #display total if no cards hidden
         has_hidden = any(card.hidden for card in self.cards)
         display_total = "?" if has_hidden else self.total
@@ -57,13 +56,15 @@ class Hand:
         bj_tag = " [BLACKJACK!]" if self.is_blackjack else ""
         bust_tag = " [BUSTED!]" if self.is_bust else ""
 
-        header = f"{prefix}{label} | Bet: {self.bet} | TOTAL: {display_total}{bj_tag}{bust_tag}"
+        header = f"{label} | Bet: {self.bet} | TOTAL: {display_total}{bj_tag}{bust_tag}"
+        if is_active:
+            header = f" ► {header}  ◄ YOUR TURN"
         cprint(header)
 
         print_cards(self.cards)
         # if outcome_msg is set, print it
         if self.outcome_msg:
-            footer = f"{prefix}OUTCOME: {self.outcome_msg}"
+            footer = f"OUTCOME: {self.outcome_msg}"
             if self.bet_result_str:
                 footer += f" ({self.bet_result_str})"
             cprint(footer)

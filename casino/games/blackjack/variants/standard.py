@@ -12,6 +12,11 @@ class StandardBlackjack(Blackjack):
     def __init__(self, ctx: GameContext) -> None:
         super().__init__(ctx)
         self.stats = GameStats("Blackjack (U.S.)", ctx.account.balance)
+        self.alt_stats = (
+            GameStats("Blackjack (U.S.)", ctx.alternate_account.balance)
+            if ctx.alternate_account is not None
+            else None
+        )
 
     def bet(self):
         """
@@ -242,13 +247,14 @@ class StandardBlackjack(Blackjack):
 
                 self.update_hand_results(hand, result)
 
-                self.stats.rounds_played += 1
+                target = self.stats if player is self.player else self.alt_stats
+                target.rounds_played += 1
                 if result in {"player_blackjack", "player_wins", "dealer_bust"}:
-                    self.stats.wins += 1
+                    target.wins += 1
                 elif result in {"tie", "blackjack_tie"}:
-                    self.stats.pushes += 1
+                    target.pushes += 1
                 else:
-                    self.stats.losses += 1
+                    target.losses += 1
 
     def payout(self):
         """
@@ -264,9 +270,31 @@ class StandardBlackjack(Blackjack):
         """
         self.dealer_hand.reveal_all()
         self.view.render_table(self.players, self.dealer_hand)
+        self._winner_banner()
         cprint("=" * 40)
         cprint(" ROUND FINISHED - RESULTS AS SHOWN ABOVE ".center(45, "#"))
         cinput("Press [Enter] to continue ... ")
+
+    def _winner_banner(self) -> None:
+        """
+        Shows a clear winner line: which player(s) won, or dealer, or tie.
+        """
+        winners = []
+        for player in self.players:
+            for hand in player.hands:
+                if hand.result_key in {"player_wins", "player_blackjack", "dealer_bust"}:
+                    if player.name not in winners:
+                        winners.append(player.name)
+        if winners:
+            if len(winners) == 1:
+                banner = f" {winners[0]} WINS "
+            else:
+                banner = f" {' & '.join(winners)} WIN "
+            cprint(banner.center(45, "*"))
+        elif all(h.result_key in {"dealer_wins", "dealer_blackjack", "player_bust"} for p in self.players for h in p.hands):
+            cprint(" DEALER WINS ".center(45, "*"))
+        else:
+            cprint(" TIE ".center(45, "*"))
 
     #combining the 8 steps
     def play_round(self) -> str:
@@ -338,8 +366,7 @@ def play_blackjack(context: GameContext):
         end_of_round_status = blackjack.play_round()
 
         if end_of_round_status.upper() == "EXIT":
-            blackjack.stats.ending_balance = context.account.balance
-            display_stats(blackjack.stats)
+            blackjack.show_final_stats()
             cprint("Exiting Blackjack...")
             sleep(1.0)
             break
@@ -350,8 +377,7 @@ def play_blackjack(context: GameContext):
             blackjack.reset()
             continue
         elif end_of_round_status.upper() == "KICKED":
-            blackjack.stats.ending_balance = context.account.balance
-            display_stats(blackjack.stats)
+            blackjack.show_final_stats()
             action: str = None
             while action != "":
                 clear_screen()

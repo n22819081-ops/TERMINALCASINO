@@ -24,9 +24,10 @@ class GameStats:
         return f"{self.wins / self.rounds_played * 100:.1f}%"
 
 
-def display_stats(stats: GameStats) -> None:
+def display_stats(stats: GameStats, player_name: str | None = None, wait: bool = True, clear: bool = True) -> None:
     """Display a post-game session summary."""
-    clear_screen()
+    if clear:
+        clear_screen()
 
     net = stats.net
     net_str = f"+{net}" if net > 0 else str(net)
@@ -43,25 +44,28 @@ def display_stats(stats: GameStats) -> None:
         ("Ending Balance", str(stats.ending_balance)),
         ("Net Profit/Loss", net_str),
     ]
+    if player_name is not None:
+        rows.insert(0, ("Player", player_name))
 
     label_width = max(len(r[0]) for r in rows)
     value_width = max(len(r[1]) for r in rows)
-    inner_width = label_width + value_width + 6  # padding + colon + spaces
-    box_width = inner_width + 4  # borders + margin
+    inner_width = label_width + value_width + 7  # padding + colon + spaces
+    box_width = inner_width + 2  # borders
 
     title = " Session Summary "
-    side = (box_width - 2 - len(title)) // 2
-    top_border = f"┌{'─' * side}{title}{'─' * (box_width - 2 - side - len(title))}┐"
-    bot_border = f"└{'─' * (box_width - 2)}┘"
+    side = (inner_width - len(title)) // 2
+    top_border = f"┌{'─' * side}{title}{'─' * (inner_width - side - len(title))}┐"
+    bot_border = f"└{'─' * inner_width}┘"
 
     cprint(top_border)
     for label, value in rows:
         if label == "":
-            cprint(f"│{' ' * (box_width - 2)}│")
+            content = " " * inner_width
         else:
-            line = f"  {label + ':':<{label_width + 1}}  {value:>{value_width}}  "
-            cprint(f"│{line}│")
+            content = f"  {label + ':':<{label_width + 1}}  {value:>{value_width}}  "
+        cprint(f"│{content}│")
     cprint(bot_border)
 
-    cprint("")
-    cinput("Press Enter to return to menu...")
+    if wait:
+        cprint("")
+        cinput("Press Enter to return to menu...")
